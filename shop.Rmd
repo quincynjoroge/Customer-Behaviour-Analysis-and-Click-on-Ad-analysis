@@ -1,0 +1,546 @@
+---
+title: "Online Shop Analysis"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+## Specifying The Question
+To assist the sales team in identifying characteristics of consumer groups, do cluster analysis on customer behavior data obtained by Kira Plastinina, a Russian company.
+
+## Metrics of success
+Distinction of customer groups and their differentiating characteristics.
+
+## Understanding the context
+We will be using data collected from an E-Commerce site. E-commerce is the buying and selling of goods and services, or the transmitting of funds or data, over an electronic network, primarily the internet.
+
+Kira Plastinina is a Russian brand that is sold through a defunct chain of retail stores in Russia, Ukraine, Kazakhstan, Belarus, China, Philippines, and Armenia. The brand’s Sales and Marketing team would like to understand their customer’s behavior from data that they have collected over the past year. More specifically, they would like to learn the characteristics of customer groups.
+
+## Recording the experimental design
+- Loading the data
+- Check the Data
+- Perform Data Cleaning
+- Perform Exploratory Data Analysis  (Univariate, Bivariate & Multivariate)
+- Implement the Solution
+- Conclusion
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading libraries
+```{r}
+# Importing the necessary R libraries
+library(tidyverse)
+library(magrittr)
+library(corrplot)
+library(caret)
+library(readr)
+library(BBmisc)
+library(psych)
+options(warn = -1)
+
+library(grid)
+theme_set(theme_bw())
+options(warn = -1)
+
+```
+```{r}
+library(ggplot2)
+```
+
+### Loading data
+
+```{r}
+shop = read.csv("http://bit.ly/EcommerceCustomersDataset")
+```
+
+## Exploratory Analysis
+
+### Checking the data
+
+```{r}
+# checking the head of our data
+head(shop)
+```
+```{r}
+# checking the tail of our data
+tail(shop)
+```
+```{r}
+# checking the structure of the data
+str(shop)
+```
+
+The dataset consists of 10 numerical and 8 categorical attributes
+
+```{r}
+# checking the number of observations and features
+dim(shop)
+```
+
+Our data set has 12330 observations and 18 variables.
+
+### Tidying the data
+
+```{r}
+# Checking for missing values
+colSums(is.na(shop))
+```
+
+There are missing values in the columns: Administrative, Administrative_Duration,Informationa,Informational_Duration,ProductRelated,ProductRelated_Duration,BounceRates,ExitRates.
+
+Let's check whether the features (columns) and samples (rows) have more than 5% of the data missing using a  function.
+
+```{r}
+pMiss <- function(x){sum(is.na(x))/length(x)*100}
+apply(shop,2,pMiss)
+apply(shop,1,pMiss)
+```
+
+The columns have more than 5% of missing data, we will still drop the rows as they are just 14 and our data has 12330 rows.
+
+```{r}
+# Omitting missing values
+shop = na.omit(shop)
+
+# Checking for missing values
+
+colSums(is.na(shop))
+
+# Check for number of remaining columns
+print("The number of rows is:",quote=FALSE)
+nrow(shop)
+```
+
+The missing values have been omitted and we now have 12316 observations which is enough for our analysis.
+
+```{r}
+# Checking for duplicates
+duplicates <- shop[duplicated(shop),]
+dim(duplicates)
+```
+
+There are 117 duplicates rows. We will remove the duplicates so as to have reliable data.
+
+```{r}
+# removing duplicates
+shop <- shop[!duplicated(shop),]
+dim(shop)
+```
+
+We now have 12199 observations and 18 variables.Our data set seems to still be enough for the analysis.
+
+```{r}
+# Check for unique values in month and visitor type columns
+unique(shop$Month);
+unique(shop$VisitorType);
+```
+
+- The unique values seem okay.
+
+- The visitor type has 3 unique values; Returning visitor, New visitor and other.
+
+- The months;Jan and April have no record.
+
+#### There appears to be anomalies in the ProductRelated_Duration, Administrative_Duration and Informational_Duration columns with some observations having a value of -1. Duration cannot be negative.
+
+```{r}
+# Check the number of records with this anomaly
+
+anomaly <- shop %>% select(c(Administrative_Duration, Administrative, Informational_Duration, Informational, ProductRelated_Duration, ProductRelated)) %>% filter(Administrative_Duration == -1 | Informational_Duration == -1 | ProductRelated_Duration == -1)
+
+anomaly
+```
+
+There are 33 records with this anomaly. We will drop this records.
+
+```{r}
+# Dropping the 33 records
+shop <- shop %>% filter(Administrative_Duration != -1, Informational_Duration != -1, ProductRelated_Duration != 1)
+```
+
+```{r}
+# checking the remaining observations in our data
+dim(shop)
+```
+
+Our data has 12164 observations now. This is still good for our analysis.
+
+```{r}
+# Creating a  function to check for the number of outliers in each column
+
+outlier_detector <- function(x){
+  out <- boxplot.stats(x)$out
+  return((length(out)/  12164)*100)
+}
+```
+
+```{r}
+# Get outlier count per column
+sapply(shop[,c(1:9)], outlier_detector)
+```
+
+```{r}
+# Plot boxplots of columns with high % of outliers
+boxplot(shop$Informational, shop$Informational_Duration, shop$PageValues,
+main = "Columns with high values of outliers",
+names = c("Informational", "Informational_Duration", "Page Values"),
+col = c("orange","blue"),
+border = "brown",
+notch = TRUE)
+```
+
+- All outliers are found above the third quantile, implying that they are all found in the higher ranges of the above variables. Given the nature of the data, it's quite possible for customers to spend extended periods of time on informational pages or browsing pages containing high-value items. As a result, we will keep the outliers.
+
+- The other outliers will not be removed because they may reveal information about certain special days or consumers.
+
+### Univariate Analysis
+
+When using univariate approaches, you just look at one variable at a time.
+
+The following are examples of univariate analysis:
+
+- Mean, Median, and Mode are three measures of central tendancy.
+
+- Dispersion measures include the minimum, maximum, range, quartiles, variance, and standard deviation.
+
+- Other factors to consider are skewness and kurtosis.
+
+- Histogram, Box plots, Bar plots, and Kernel density plots are examples of univariate graphs.
+
+```{r}
+# checking the summary statistics of each column
+summary(shop)
+```
+
+The method describe() gives more measures of dispersion compared to the summary()
+
+The describe() function which is part of the Hmisc package displays the following additional statistics:
+
+- Number of rows
+- Standard deviation
+- Trimmed mean
+- Mean absolute deviation
+- Skewness
+- Kurtosis
+- Standard error
+
+```{r}
+# describing our columns
+describe(shop)
+```
+Informational Duration, ProductRelated Duration, and PageValues are the most positively skewed variables, having high kurtosis values.
+
+```{r}
+
+```{r}
+# Frequency distribution of the categorical variables
+sapply(shop[, c(11:18)], table)
+```
+
+
+
+```{r}
+# Creating histogram plots to visually view the categorical variables
+#par(mfrow=c(4,1))
+for(i in 11:18) {
+	counts <- table(shop[,i])
+	name <- names(shop)[i]
+	barplot(counts, main=name, col = heat.colors(20))}
+```
+
+- Months with the highest activity are May, November, March and December.
+
+- Most visitors have a type 2 operating system followed by type 3 and 1.
+
+- Most visitors have a type 2 browser.
+
+- Most visitors to the site are located in region 1 and 3.
+
+- Most of the traffic to the website is of type 2 and 1
+
+- Visitors to the site are mostly returning visitors.
+
+- Most of the traffic happens on weekdays rather than on weekends.
+
+- Most visits to the site do not earn revenue.
+
+### Bivariate Analysis
+
+Two variables are analyzed to see if there is a relationship between them.
+
+```{r}
+# Let's plot scatter plots
+plot(Administrative_Duration ~ Informational_Duration, dat = shop, 
+      col = "blue",
+      main = "Admin vs Information Scatter Plot")
+```
+
+The Administration duration and Information duration seem to have a weak relationship.
+
+```{r}
+# Let's plot scatter plots
+plot(BounceRates ~ ExitRates, dat = shop, 
+      col = "blue",
+      main = "BounceRates vs ExitRates Scatter Plot")
+```
+
+There is a high positive correlation between Bounce and exit rates. This shows that users who bounce from one page to another are most likely to exit the site quicker.
+
+```{r}
+# Number of visits to product related pages per month
+product_stats <- shop %>% select(ProductRelated, ProductRelated_Duration, Month)%>%group_by(Month)%>% summarise_all(mean)
+product_stats[order(product_stats$ProductRelated, decreasing = TRUE),]
+```
+
+
+It seems that there is more activity in November as it  has the highest product related visits and the product related duration is high as well.
+
+```{r}
+# Getting the  bounce rates and exit rates among visitor groups
+visitor <- shop %>% select(VisitorType, ExitRates, BounceRates)%>% group_by(VisitorType)%>%summarise_all(mean) 
+
+visitor
+```
+
+Visitors of type other have a higher ExitRate and BounceRates followed by ReturningVisitors.
+
+```{r}
+# Creating a plot to show the ExitRate and BounceRatesin relation to the traffic type.
+traffic <- shop %>% select(TrafficType, ExitRates, BounceRates)%>% group_by(TrafficType)%>% summarise_all(mean)
+par(mfrow = c(1,2))
+ggplot(traffic, aes(x=TrafficType, y = ExitRates))+
+  geom_bar(stat = "identity", fill="peachpuff2")
+ggplot(traffic, aes(x=TrafficType, y = BounceRates))+
+  geom_bar(stat = "identity", fill="peachpuff2")
+```
+
+The traffic types 15 and 17 have the highest Exit and Bounce Rates.
+
+```{r}
+# Creating a plot to show the Administrative, ProductRelated and Informational relation to the traffic type.
+traffic_page<- shop %>% select(TrafficType, Administrative,Informational,ProductRelated)%>% group_by(TrafficType)%>% summarise_all(mean)
+par(mfrow = c(1,3))
+ggplot(traffic_page, aes(x=TrafficType, y = Administrative))+
+  geom_bar(stat = "identity", fill="lightblue")
+ggplot(traffic_page, aes(x=TrafficType, y = Informational))+
+  geom_bar(stat = "identity", fill="lightblue")
+ggplot(traffic_page, aes(x=TrafficType, y = ProductRelated))+
+  geom_bar(stat = "identity", fill="lightblue")
+```
+
+```{r}
+# Stacked bar chart: Visitor Type vs Month
+shop %>%
+    ggplot(aes(Month)) +
+    geom_bar(aes(fill = VisitorType))+
+    labs(title = "Visitor Type by Month")
+```
+
+- Feb and June are the least busy months.
+
+- May, Nov, March, and December are the busy months.
+
+- During these months there is a higher number of new visitors. This can be leveraged by the company to create advertisements that will attract the new users to register to the site.
+
+- **Other** customer shops in November and December. 
+
+```{r}
+# Stacked bar chart: Revenue vs Day Type
+shop %>%
+    ggplot(aes(Revenue)) +
+    geom_bar(aes(fill = Weekend))+
+    labs(title = "Revenue by Day Type")
+```
+
+- Our data is imbalanced.
+
+- Most of the data indicates that a client's visit to the page did not result in income for the company, i.e. the customer did not make a purchase.
+
+- Of the remaining data, the company made revenue mostly during the weekdays.
+
+### Multivariate Analysis
+
+Three or more variables are analyzed to derive conclusions and find relationships between them.
+
+```{r}
+# calculating correlations and plotting a correlation plot
+corrplot(corr = cor(shop[, c(1:9)]), method = "number", type = "upper", order = "hclust", tl.col = "black", tl.cex = 0.6)
+
+```
+
+There is a high correlation between bounce rates and exit rates.
+
+## Implementing the solution
+
+### Encoding our categorical variables
+
+```{r}
+# One hot encoding of the factor/categorical variables.
+
+dummy_shop = dummyVars(" ~ .", data = shop)
+
+df = data.frame(predict(dummy_shop, newdata = shop))
+```
+
+```{r}
+# checking the data types
+sapply(df, class)
+```
+
+```{r}
+glimpse(df)
+```
+
+```{r}
+# We will remove the Revenue column it is the class label, we will store it in another variable
+df_copy <- df[, -c(30:31)]
+df.class<- shop[, "Revenue"]
+
+df_copy_copy <- df[, -c(30,31)]
+```
+
+```{r}
+
+# Previewing the dataset with dummies
+head(df_copy)
+```
+
+Normalizing or Scaling the data. Lets see which gives the best:
+This is important to ensure that no particular attribute has more impact on clustering algorithm than others.
+
+```{r}
+# scaling
+df_scaled <- scale(df_copy)
+# check the output
+summary(df_scaled)
+```
+
+Some attributes continue to have high values when compared to others.
+The data is scaled to have a mean of 0 as a result of the scaling.
+
+```{r}
+# Lets normalize the data and see if the results change.
+# Normalize
+df_norm <- as.data.frame(apply(df_copy, 2, function(x) (x - min(x))/(max(x)-min(x))))
+# summary of normalized data
+summary(df_norm)
+```
+
+We have a maximum value of 1 and minimum value of 0s and mean of close to zero in all attributes.
+We will use the Normalized data set for clustering.
+
+```{r}
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+```
+
+### KMeans Clustering
+
+```{r}
+# Using Elbow plot  method, Searching for the optimal number of clusters
+fviz_nbclust(df_norm, kmeans, method = "wss") +
+    geom_vline(xintercept = 4, linetype = 2)+
+  labs(subtitle = "Elbow plot")
+
+```
+```{r}
+# Compute k-means clustering with k = 4
+set.seed(123)
+final <- kmeans(df_norm, 4, nstart = 25)
+print(final)
+```
+
+```{r}
+# Previewing the number of records in each cluster
+
+final$size
+```
+
+```{r}
+# visualize the results
+fviz_cluster(final, data = df)
+```
+
+
+The visualization isn't really clear.
+
+```{r}
+# Plotting two variables to see how their data points have been distributed in the cluster
+# Product Related, vs Product Related Duration
+
+plot(df_norm[, 5:6], col = final$cluster)
+```
+
+Extract the clusters and add to our initial data to do some descriptive statistics at the cluster level
+
+```{r}
+shop %>%
+  mutate(Cluster = final$cluster) %>%
+  group_by(Cluster) %>%
+  summarise_all("mean")
+```
+
+### Hierachical Clustering
+
+```{r}
+#First we use the dist() to compute the Euclidean distance btwn observation points
+shop_dist = dist(df_norm, method = "euclidean")
+
+#Set the hclust() dissimilairty matrix
+#We then apply hierarchical clustering using the Ward's method
+shop_hc = hclust(shop_dist, method = "ward.D2")
+
+#Plot the obtained dendrogram
+plot(shop_hc, cex = 0.6, hang = -1)
+```
+
+```{r}
+# cutting the clusters into 4 groups
+group<-cutree(shop_hc,k=6)
+# viewing the clustered groups
+table(group)
+```
+
+```{r}
+# creating a table
+hclust<-dplyr::mutate(shop,clusters=group)
+head(hclust)
+```
+
+
+## Conclusion
+
+- Informational Duration, ProductRelated Duration, and PageValues are the most positively skewed variables, having high kurtosis values.
+
+- Months with the highest activity are May, November, March and December. The company should consider psudhing more adverts or offers to increase sales on these months.
+
+- Most visitors have a type 2 operating system followed by type 3 and 1. It would be better if we would further explore what these os are.
+
+- Most visitors have a type 2 browser.
+
+- Most visitors to the site are located in region 1 and 3. The company should also focus more on these two regions in order to drive more sales and traffic to their site.
+
+- Most of the traffic to the website is of type 2 and 1.
+
+- Visitors to the site are mostly returning visitors.
+
+- Most of the traffic happens on weekdays rather than on weekends. Most adverts should be running on weekdays as wel as offers.
+
+- Most visits to the site do not earn revenue. We would further need to explore on this and get a reason as to why people do not purchase products.
+
+- There is a high positive correlation between Bounce and exit rates. This shows that users who bounce from one page to another are most likely to exit the site quicker.
+
+- It seems that there is more activity in November as it  has the highest product related visits and the product related duration is high as well.
+
+- Visitors of type other have a higher ExitRate and BounceRates followed by ReturningVisitors.
+
+-The traffic types 15 and 17 have the highest Exit and Bounce Rates.
+
+- During these months there is a higher number of new visitors. This can be leveraged by the company to create advertisements that will attract the new users to register to the site.
+
+- **Other** customer shops in November and December. 
+
+- Most of the data indicates that a client's visit to the page did not result in income for the company, i.e. the customer did not make a purchase.
+
