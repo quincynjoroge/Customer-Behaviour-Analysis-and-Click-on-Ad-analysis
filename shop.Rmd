@@ -232,12 +232,13 @@ describe(shop)
 ```
 Informational Duration, ProductRelated Duration, and PageValues are the most positively skewed variables, having high kurtosis values.
 
-```{r}
+
 
 ```{r}
 # Frequency distribution of the categorical variables
 sapply(shop[, c(11:18)], table)
 ```
+
 
 
 
@@ -445,6 +446,9 @@ fviz_nbclust(df_norm, kmeans, method = "wss") +
   labs(subtitle = "Elbow plot")
 
 ```
+
+4 is the number of optimal clusters, we can use to  perform the final analysis and extract the results using 4 clusters.
+
 ```{r}
 # Compute k-means clustering with k = 4
 set.seed(123)
@@ -458,6 +462,14 @@ print(final)
 final$size
 ```
 
+cluster 1 has 2607 records
+
+cluster 2: 4515 records
+
+cluster 3: 2189 records
+
+cluster 4: 2853 records
+
 ```{r}
 # visualize the results
 fviz_cluster(final, data = df)
@@ -465,6 +477,7 @@ fviz_cluster(final, data = df)
 
 
 The visualization isn't really clear.
+
 
 ```{r}
 # Plotting two variables to see how their data points have been distributed in the cluster
@@ -482,23 +495,24 @@ shop %>%
   summarise_all("mean")
 ```
 
+
 ### Hierachical Clustering
 
 ```{r}
-#First we use the dist() to compute the Euclidean distance btwn observation points
+# First we use the dist() to compute the Euclidean distance between observation points
 shop_dist = dist(df_norm, method = "euclidean")
 
-#Set the hclust() dissimilairty matrix
-#We then apply hierarchical clustering using the Ward's method
+# Set the hclust() dissimilarity matrix
+# We then apply hierarchical clustering using the Ward's method
 shop_hc = hclust(shop_dist, method = "ward.D2")
 
-#Plot the obtained dendrogram
+# Plot the obtained dendrogram
 plot(shop_hc, cex = 0.6, hang = -1)
 ```
 
 ```{r}
 # cutting the clusters into 4 groups
-group<-cutree(shop_hc,k=6)
+group<-cutree(shop_hc,k=4)
 # viewing the clustered groups
 table(group)
 ```
@@ -508,6 +522,10 @@ table(group)
 hclust<-dplyr::mutate(shop,clusters=group)
 head(hclust)
 ```
+
+One potential disadvantage of K-means clustering is that it requires us to pre-specify the number of clusters. Hierarchical clustering is an alternative approach which does not require that we commit to a particular choice of clusters. Hierarchical clustering has an added advantage over K-means clustering in that it results in an attractive tree-based representation of the observations, called a dendrogram. 
+
+However from the above, The Kmeans clustering seems to have done better as compared to the hierarchical cluster method.
 
 
 ## Conclusion
